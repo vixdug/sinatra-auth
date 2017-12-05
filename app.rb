@@ -9,7 +9,7 @@ Dotenv.load
 
 API_KEY = ENV['API_KEY']
 API_SECRET = ENV['API_SECRET']
-APP_URL = 'https://b65ca259.ngrok.io'
+APP_URL = 'https://2bc32a67.ngrok.io'
 
 class VixApp < Sinatra::Base
     attr_reader :tokens
@@ -37,7 +37,6 @@ class VixApp < Sinatra::Base
 	end
 
   get '/auth' do
-
      # when the merchant clicks on 'install' a params hash is generated with hmac, code, shop, and timestamp
      hmac = params['hmac']
      # assinging params as values to each key in the hash
@@ -56,7 +55,6 @@ class VixApp < Sinatra::Base
      # as long as the hmac matches the digest
      digest = OpenSSL::HMAC::hexdigest(digest, API_SECRET, h)
 
-
      url = "https://#{params['shop']}/admin/oauth/access_token"
      data = {
        client_id: API_KEY,
@@ -69,16 +67,54 @@ class VixApp < Sinatra::Base
      response = HTTParty.post(url, body: data)
 
      if hmac == digest
-
        # make sure to parse the body of the response - otherwise you will not
        # be able to properly set a token for the shop
        response = JSON.parse(response.body)
-       @@tokens[params['shop']] = response['access_token']
+       shop = params['shop']
+       token = response['access_token']
+       @@tokens[shop] = token
+       create_session(shop, token)
+       create_webhook
        redirect "/"
         else
        status [403, "You did something wrong, you should probably check your code"]
        end
    end
+
+   post "/webhooks/deleted_orders" do
+    hmac = request.env['HTTP_X_SHOPIFY_HMAC_SHA256']
+    request.body.rewind
+    data = request.body.read
+    webhook_ok = verify_webhook(hmac, data)
+    if webhook_ok
+      puts "verified webhook"
+      json_data = JSON.parse(data)
+      @id = json_data['id']
+      puts "order id is #{id}"
+    else
+      puts "webhook not verified"
+   end
+ end
+
+   def create_session(shop, token)
+     session = ShopifyAPI::Session.new(shop, token)
+     ShopifyAPI::Base.activate_session(session)
+   end
+
+   def create_webhook
+    webhook = {
+      topic: 'orders/delete',
+      address:"#{APP_URL}/webhooks/deleted_orders",
+      format: 'json'
+    }
+    ShopifyAPI::Webhook.create(webhook)
+  end
+
+  def verify_webhook(hmac, data)
+    digest = OpenSSL::Digest.new('sha256')
+    calculated_hmac = Base64.encode64(OpenSSL::HMAC.digest(digest, API_SECRET, data)).strip
+    hmac == calculated_hmac
+  end
 
  end
 

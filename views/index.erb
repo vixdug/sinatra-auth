@@ -2,7 +2,7 @@
   <script src="https://cdn.shopify.com/s/assets/external/app.js"></script>
   <script type="text/javascript">
     ShopifyApp.init({
-      apiKey: 'e64b5e4f21264a36264440c2eb5357c1',
+      apiKey: '<%= API_KEY %>',
       shopOrigin: 'https://api-test-store-vix.myshopify.com',
       debug: true
     });
@@ -12,5 +12,8 @@
 <body>
 
 <h3>Shopify Sinatra App</h3>
+<h2> <%= @id %> </h2>
+
+
 
 </body>
